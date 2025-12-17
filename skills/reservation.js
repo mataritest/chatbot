@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
         if (clearSession) clearSession(userId);
 
         // 아키텍트님 호칭 적용 응답
-        const naverUrl = process.env.NAVER_BOOKING_URL || 'https://naver.me/예약URL';
+        const naverUrl = process.env.NAVER_BOOKING_URL || 'https://naver.me/5L7kizbg';
 
         return res.json(basicCard({
             title: `${name} 아키텍트님, 확인되었습니다.`,

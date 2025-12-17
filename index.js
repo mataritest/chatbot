@@ -8,6 +8,7 @@ const path = require('path');
 const reservationHandler = require('./skills/reservation');
 const directionHandler = require('./skills/direction');
 const conciergeHandler = require('./skills/concierge');
+const brandHandler = require('./skills/brand');
 const { simpleText, textWithQuickReplies } = require('./utils/kakaoResponse');
 
 const app = express();
@@ -130,25 +131,36 @@ app.post('/skill', async (req, res) => {
       actionName.includes('welcome')) {
       clearSession(userId);
       return res.json(textWithQuickReplies(
-        '안녕하세요! 에스테틱에 오신 것을 환영합니다. 🙏\n\n원하시는 서비스를 선택해 주세요.',
+        '안녕하세요! 당신의 피부를 위한 마음손길입니다. 🙏\n\n원하시는 서비스를 선택해 주세요.',
         [
           { label: '예약하기', message: '예약하기' },
           { label: '오시는 길', message: '오시는 길' },
-          { label: '1:1 상담', message: '1:1 상담' }
+          { label: '1:1 상담', message: '1:1 상담' },
+          { label: '브랜드 소개', message: '브랜드 소개' }
         ]
       ));
     }
 
     // ============================================
-    // 2. 예약 시작 명령 (명시적 키워드만)
+    // 2. 예약 시작 명령 (다양한 키워드 지원)
     // ============================================
-    if (utterance.includes('예약') ||
-      actionName.includes('reservation') ||
-      blockName.includes('예약')) {
+    const reservationKeywords = [
+      '예약', '예약하기', '예약 하기', '예약할게', '예약할래', '예약하고싶어',
+      '예약 신청', '예약신청', '상담 예약', '상담예약',
+      '신청', '신청하기', '신청할게',
+      '방문 예약', '방문예약', '첫 방문', '첫방문',
+      '세션', '세션 예약', '퍼스트 세션', 'first session',
+      'ts', 'reservation', 'book', 'booking'
+    ];
+
+    const isReservationTrigger = reservationKeywords.some(keyword =>
+      utterance.toLowerCase().includes(keyword.toLowerCase())
+    ) || actionName.includes('reservation') || blockName.includes('예약');
+
+    if (isReservationTrigger) {
       setSessionState(userId, 'reservation');
       return reservationHandler(req, res);
     }
-
 
     // ============================================
     // 3. 오시는 길
@@ -173,6 +185,18 @@ app.post('/skill', async (req, res) => {
     }
 
     // ============================================
+    // 5. 브랜드 소개 (Director Info)
+    // ============================================
+    if (utterance.includes('브랜드') ||
+      utterance.includes('원장') ||
+      utterance.includes('소개') ||
+      utterance.includes('가격') ||
+      actionName.includes('brand')) {
+      clearSession(userId);
+      return brandHandler(req, res);
+    }
+
+    // ============================================
     // 5. 세션 상태에 따른 처리
     // ============================================
     if (session.state === 'reservation') {
@@ -190,7 +214,8 @@ app.post('/skill', async (req, res) => {
       [
         { label: '처음으로 돌아가기', message: '시작하기' },
         { label: '예약하기', message: '예약하기' },
-        { label: '오시는 길', message: '오시는 길' }
+        { label: '오시는 길', message: '오시는 길' },
+        { label: '브랜드 소개', message: '브랜드 소개' }
       ]
     ));
 
@@ -204,6 +229,7 @@ app.post('/skill', async (req, res) => {
 app.post('/skill/reservation', reservationHandler);
 app.post('/skill/direction', directionHandler);
 app.post('/skill/concierge', conciergeHandler);
+app.post('/skill/brand', brandHandler);
 
 // 세션 관리 함수 내보내기 (reservation.js에서 사용)
 app.locals.clearSession = clearSession;

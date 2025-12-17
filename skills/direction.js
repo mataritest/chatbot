@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
             return res.json(basicCard({
                 title: '오시는 길',
                 description:
-                    `📍 주소: [관리자가 설정]\n\n` +
+                    `📍 주소: 서울특별시 용산구 한강대로 95 래미안 용산 더 센트럴 2층 222호\n\n` +
                     `🚗 주차 안내:\n` +
                     `- 건물 내 지하주차장 이용 가능\n` +
                     `- 2시간 무료 주차 제공`,
@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
                     {
                         label: '네이버 지도로 보기',
                         action: 'webLink',
-                        webLinkUrl: process.env.NAVER_MAP_URL || 'https://map.naver.com'
+                        webLinkUrl: process.env.NAVER_MAP_URL || 'https://naver.me/5L7kizbg'
                     }
                 ]
             }));
@@ -34,10 +34,12 @@ module.exports = async (req, res) => {
         // 이미지 URL이 없으면 텍스트로 응답
         return res.json(simpleText(
             `📍 오시는 길\n\n` +
-            `주소: [관리자가 설정]\n\n` +
+            `주소: 서울특별시 용산구 한강대로 95 래미안 용산 더 센트럴 2층 222호\n\n` +
             `🚗 주차 안내:\n` +
             `- 건물 내 지하주차장 이용 가능\n` +
             `- 2시간 무료 주차 제공\n\n` +
+            `🔗 네이버 지도보기:\n` +
+            `${process.env.NAVER_MAP_URL || 'https://naver.me/5L7kizbg'}\n\n` +
             `문의사항은 프라이빗 컨시어지를 통해 연락해 주세요.`
         ));
 
