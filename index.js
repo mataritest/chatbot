@@ -245,3 +245,20 @@ app.listen(PORT, () => {
 
 // 세션 함수 전역 내보내기
 module.exports = { clearSession, setSessionState };
+
+// ============================================
+// [Render Free Tier 방지용] Self-Ping
+// 10분(600,000ms)마다 서버가 자기 자신(공개 URL)을 호출하여 Sleep 방지
+// ============================================
+const https = require('https');
+
+setInterval(() => {
+  const url = process.env.RENDER_EXTERNAL_URL; // Render에서 자동 제공하는 환경변수
+  if (url) {
+    https.get(url, (res) => {
+      console.log(`📡 Self-Ping 성공: ${res.statusCode}`);
+    }).on('error', (e) => {
+      console.error(`❌ Self-Ping 오류: ${e.message}`);
+    });
+  }
+}, 10 * 60 * 1000); // 10분마다 실행
