@@ -1,15 +1,33 @@
 const { google } = require('googleapis');
 const path = require('path');
+const fs = require('fs');
 
 // Google 서비스 계정 키 파일 로드
+// Render: /etc/secrets/ 경로 사용
+// 로컬: 프로젝트 루트의 JSON 파일 사용
 let credentials;
+
+const RENDER_SECRET_PATH = '/etc/secrets/zippy-sublime-444718-f5-45529eb4a57e.json';
+const LOCAL_PATH = path.join(__dirname, '..', 'zippy-sublime-444718-f5-45529eb4a57e.json');
+
 try {
-    credentials = require(path.join(__dirname, '..', 'zippy-sublime-444718-f5-45529eb4a57e.json'));
-    console.log('✅ Google 서비스 계정 키 로드 성공');
+    if (fs.existsSync(RENDER_SECRET_PATH)) {
+        // Render 환경
+        credentials = JSON.parse(fs.readFileSync(RENDER_SECRET_PATH, 'utf8'));
+        console.log('✅ Google 서비스 계정 키 로드 성공 (Render)');
+    } else if (fs.existsSync(LOCAL_PATH)) {
+        // 로컬 개발 환경
+        credentials = require(LOCAL_PATH);
+        console.log('✅ Google 서비스 계정 키 로드 성공 (로컬)');
+    } else {
+        console.error('❌ Google 서비스 계정 키 파일을 찾을 수 없습니다.');
+        credentials = null;
+    }
 } catch (e) {
-    console.error('❌ Google 서비스 계정 키 파일을 찾을 수 없습니다.');
+    console.error('❌ Google 서비스 계정 키 로드 실패:', e.message);
     credentials = null;
 }
+
 
 // 스프레드시트 ID (URL에서 추출)
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1lO89TSNMbLWUhkp6UBpSkK27CSRx4A4XBAWo4TNQCds';
