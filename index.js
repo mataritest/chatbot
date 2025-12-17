@@ -109,10 +109,17 @@ app.post('/skill', async (req, res) => {
 
     // 액션명 또는 블록명 추출
     const actionName = action?.name || '';
+    const blockId = action?.id || '';
     const blockName = action?.clientExtra?.block_name || action?.detailParams?.block_name?.value || '';
     const utterance = userRequest?.utterance || '';
 
-    console.log(`📩 스킬 호출 - 유저: ${userId.slice(0, 8)}..., 상태: ${session.state}, 발화: "${utterance}"`);
+    // 상세 로그 출력
+    console.log(`📩 스킬 호출`);
+    console.log(`   유저: ${userId.slice(0, 8)}...`);
+    console.log(`   상태: ${session.state || '없음'}`);
+    console.log(`   액션: ${actionName || '없음'}`);
+    console.log(`   블록: ${blockName || '없음'}`);
+    console.log(`   발화: "${utterance}"`);
 
     // ============================================
     // 1. 명시적 명령어 처리 (시작하기, 처음으로 등)
@@ -133,11 +140,13 @@ app.post('/skill', async (req, res) => {
     }
 
     // ============================================
-    // 2. 예약 시작 명령
+    // 2. 예약 시작 명령 (발화, 액션, 블록명 모두 체크)
     // ============================================
     if (utterance.includes('예약') ||
       actionName.includes('reservation') ||
-      blockName.includes('예약')) {
+      actionName.includes('test') ||        // 'test' 블록에서 온 요청
+      blockName.includes('예약') ||
+      blockName.includes('test')) {         // 'test' 블록
       setSessionState(userId, 'reservation');
       return reservationHandler(req, res);
     }
