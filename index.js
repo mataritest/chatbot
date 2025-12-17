@@ -140,16 +140,15 @@ app.post('/skill', async (req, res) => {
     }
 
     // ============================================
-    // 2. 예약 시작 명령 (발화, 액션, 블록명 모두 체크)
+    // 2. 예약 시작 명령 (명시적 키워드만)
     // ============================================
     if (utterance.includes('예약') ||
       actionName.includes('reservation') ||
-      actionName.includes('test') ||        // 'test' 블록에서 온 요청
-      blockName.includes('예약') ||
-      blockName.includes('test')) {         // 'test' 블록
+      blockName.includes('예약')) {
       setSessionState(userId, 'reservation');
       return reservationHandler(req, res);
     }
+
 
     // ============================================
     // 3. 오시는 길
