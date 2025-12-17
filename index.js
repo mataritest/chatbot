@@ -65,23 +65,26 @@ app.post('/skill', async (req, res) => {
     // 오시는 길 관련
     if (actionName.includes('direction') ||
       blockName.includes('오시는') ||
-      blockName.includes('위치')) {
+      blockName.includes('위치') ||
+      utterance.includes('오시는') ||
+      utterance.includes('위치') ||
+      utterance.includes('주소')) {
       return directionHandler(req, res);
     }
 
     // 프라이빗 컨시어지 관련
     if (actionName.includes('concierge') ||
       blockName.includes('컨시어지') ||
-      blockName.includes('상담')) {
+      blockName.includes('상담') ||
+      utterance.includes('상담') ||
+      utterance.includes('컨시어지') ||
+      utterance.includes('문의')) {
       return conciergeHandler(req, res);
     }
 
-    // 기본 응답 (분기 실패 시)
-    console.log('⚠️ 매칭되는 스킬 없음, 기본 응답 반환');
-    return res.json(simpleText(
-      '안녕하세요! 에스테틱에 오신 것을 환영합니다.\n\n' +
-      '원하시는 서비스를 선택해 주세요.'
-    ));
+    // 기본 동작: 예약하기 (메인 기능)
+    console.log('📋 기본 동작 → 예약하기');
+    return reservationHandler(req, res);
 
   } catch (error) {
     console.error('❌ 스킬 처리 오류:', error);
