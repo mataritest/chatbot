@@ -8,9 +8,65 @@ const path = require('path');
 const reservationHandler = require('./skills/reservation');
 const directionHandler = require('./skills/direction');
 const conciergeHandler = require('./skills/concierge');
-const { simpleText } = require('./utils/kakaoResponse');
+const { simpleText, textWithQuickReplies } = require('./utils/kakaoResponse');
 
 const app = express();
+
+// ============================================
+// 사용자 세션 관리 (메모리 저장)
+// ============================================
+const userSessions = {};
+
+// 세션 만료 시간 (5분)
+const SESSION_TIMEOUT = 5 * 60 * 1000;
+
+/**
+ * 사용자 세션 가져오기/생성
+ */
+function getSession(userId) {
+  if (!userSessions[userId]) {
+    userSessions[userId] = {
+      state: null,
+      lastActivity: Date.now()
+    };
+  }
+  userSessions[userId].lastActivity = Date.now();
+  return userSessions[userId];
+}
+
+/**
+ * 세션 상태 설정
+ */
+function setSessionState(userId, state) {
+  const session = getSession(userId);
+  session.state = state;
+  console.log(`🔄 세션 상태 변경: ${userId} → ${state}`);
+}
+
+/**
+ * 세션 초기화
+ */
+function clearSession(userId) {
+  if (userSessions[userId]) {
+    userSessions[userId].state = null;
+    console.log(`🔄 세션 초기화: ${userId}`);
+  }
+}
+
+/**
+ * 만료된 세션 정리 (메모리 관리)
+ */
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(userSessions).forEach(userId => {
+    if (now - userSessions[userId].lastActivity > SESSION_TIMEOUT) {
+      delete userSessions[userId];
+      console.log(`🗑️ 만료된 세션 삭제: ${userId}`);
+    }
+  });
+}, 60000); // 1분마다 정리
+
+// ============================================
 
 // CORS 설정 (테스트용)
 app.use((req, res, next) => {
@@ -41,50 +97,94 @@ app.get('/', (req, res) => {
 
 /**
  * 카카오 스킬 단일 엔드포인트
- * 블록명/액션명으로 분기 처리
+ * 세션 상태 + 블록명/액션명으로 분기 처리
  */
 app.post('/skill', async (req, res) => {
   try {
     const { action, userRequest } = req.body;
+
+    // 사용자 ID 추출
+    const userId = userRequest?.user?.id || 'unknown';
+    const session = getSession(userId);
 
     // 액션명 또는 블록명 추출
     const actionName = action?.name || '';
     const blockName = action?.clientExtra?.block_name || action?.detailParams?.block_name?.value || '';
     const utterance = userRequest?.utterance || '';
 
-    console.log(`📩 스킬 호출 - 액션: ${actionName}, 블록: ${blockName}, 발화: "${utterance}"`);
+    console.log(`📩 스킬 호출 - 유저: ${userId.slice(0, 8)}..., 상태: ${session.state}, 발화: "${utterance}"`);
 
-    // 액션/블록명으로 분기 처리
-    // 예약하기 관련
-    if (actionName.includes('reservation') ||
-      blockName.includes('예약') ||
-      utterance.includes('/')) {
+    // ============================================
+    // 1. 명시적 명령어 처리 (시작하기, 처음으로 등)
+    // ============================================
+    if (utterance.includes('시작') ||
+      utterance.includes('처음') ||
+      utterance.includes('메뉴') ||
+      actionName.includes('welcome')) {
+      clearSession(userId);
+      return res.json(textWithQuickReplies(
+        '안녕하세요! 에스테틱에 오신 것을 환영합니다. 🙏\n\n원하시는 서비스를 선택해 주세요.',
+        [
+          { label: '예약하기', message: '예약하기' },
+          { label: '오시는 길', message: '오시는 길' },
+          { label: '1:1 상담', message: '1:1 상담' }
+        ]
+      ));
+    }
+
+    // ============================================
+    // 2. 예약 시작 명령
+    // ============================================
+    if (utterance.includes('예약') ||
+      actionName.includes('reservation') ||
+      blockName.includes('예약')) {
+      setSessionState(userId, 'reservation');
       return reservationHandler(req, res);
     }
 
-    // 오시는 길 관련
-    if (actionName.includes('direction') ||
-      blockName.includes('오시는') ||
-      blockName.includes('위치') ||
-      utterance.includes('오시는') ||
+    // ============================================
+    // 3. 오시는 길
+    // ============================================
+    if (utterance.includes('오시는') ||
       utterance.includes('위치') ||
-      utterance.includes('주소')) {
+      utterance.includes('주소') ||
+      actionName.includes('direction')) {
+      clearSession(userId);
       return directionHandler(req, res);
     }
 
-    // 프라이빗 컨시어지 관련
-    if (actionName.includes('concierge') ||
-      blockName.includes('컨시어지') ||
-      blockName.includes('상담') ||
-      utterance.includes('상담') ||
+    // ============================================
+    // 4. 프라이빗 컨시어지
+    // ============================================
+    if (utterance.includes('상담') ||
       utterance.includes('컨시어지') ||
-      utterance.includes('문의')) {
+      utterance.includes('문의') ||
+      actionName.includes('concierge')) {
+      clearSession(userId);
       return conciergeHandler(req, res);
     }
 
-    // 기본 동작: 예약하기 (메인 기능)
-    console.log('📋 기본 동작 → 예약하기');
-    return reservationHandler(req, res);
+    // ============================================
+    // 5. 세션 상태에 따른 처리
+    // ============================================
+    if (session.state === 'reservation') {
+      // 예약 진행 중 → 입력값을 예약 핸들러로 전달
+      console.log('📋 예약 진행 중 → 정보 입력 처리');
+      return reservationHandler(req, res);
+    }
+
+    // ============================================
+    // 6. 폴백: 컨텍스트 없음 → 이해하기 어려워요
+    // ============================================
+    console.log('⚠️ 매칭되는 명령 없음 → 폴백 응답');
+    return res.json(textWithQuickReplies(
+      '죄송해요, 이해하기 어려워요 😅\n\n원하시는 서비스를 선택해 주세요.',
+      [
+        { label: '처음으로 돌아가기', message: '시작하기' },
+        { label: '예약하기', message: '예약하기' },
+        { label: '오시는 길', message: '오시는 길' }
+      ]
+    ));
 
   } catch (error) {
     console.error('❌ 스킬 처리 오류:', error);
@@ -97,6 +197,10 @@ app.post('/skill/reservation', reservationHandler);
 app.post('/skill/direction', directionHandler);
 app.post('/skill/concierge', conciergeHandler);
 
+// 세션 관리 함수 내보내기 (reservation.js에서 사용)
+app.locals.clearSession = clearSession;
+app.locals.setSessionState = setSessionState;
+
 // 서버 시작
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -104,3 +208,6 @@ app.listen(PORT, () => {
   console.log(`📋 카카오 스킬 URL: POST /skill`);
   console.log(`📋 테스트 페이지: GET /test`);
 });
+
+// 세션 함수 전역 내보내기
+module.exports = { clearSession, setSessionState };

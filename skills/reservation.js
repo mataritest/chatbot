@@ -1,25 +1,51 @@
 const { appendCustomerData } = require('../config/sheets');
-const { simpleText, basicCard } = require('../utils/kakaoResponse');
+const { simpleText, basicCard, textWithQuickReplies } = require('../utils/kakaoResponse');
+
+// 세션 관리 함수 (index.js에서 가져옴)
+let clearSession = null;
 
 /**
  * 예약하기 스킬 핸들러
  * 
- * 1. 정보 미입력/양식 오류 시: 친절한 안내 메시지
+ * 1. 정보 미입력/양식 오류 시: 친절한 안내 메시지 + 취소 버튼
  * 2. 정보 입력 시: DB 저장 + "아키텍트님" 호칭으로 응답 + 네이버 예약 버튼
  */
 module.exports = async (req, res) => {
     try {
         const { userRequest } = req.body;
         const utterance = userRequest?.utterance || '';
+        const userId = userRequest?.user?.id || 'unknown';
+
+        // 세션 관리 함수 가져오기
+        if (!clearSession && req.app.locals.clearSession) {
+            clearSession = req.app.locals.clearSession;
+        }
 
         console.log(`📩 예약 스킬 호출: "${utterance}"`);
+
+        // 취소 명령어 체크
+        if (utterance.includes('취소') || utterance.includes('그만')) {
+            if (clearSession) clearSession(userId);
+            return res.json(textWithQuickReplies(
+                '예약이 취소되었습니다.\n\n다른 서비스를 이용하시려면 아래 버튼을 눌러주세요.',
+                [
+                    { label: '처음으로', message: '시작하기' },
+                    { label: '예약하기', message: '예약하기' }
+                ]
+            ));
+        }
 
         // 고객 정보 파싱 시도
         const parseResult = parseCustomerInfo(utterance);
 
-        // 파싱 실패 시 오류 메시지 표시
+        // 파싱 실패 시 오류 메시지 표시 + 취소 버튼
         if (!parseResult.success) {
-            return res.json(simpleText(parseResult.message));
+            return res.json(textWithQuickReplies(
+                parseResult.message,
+                [
+                    { label: '취소하고 돌아가기', message: '취소' }
+                ]
+            ));
         }
 
         const { name, phone, job } = parseResult.data;
@@ -31,6 +57,9 @@ module.exports = async (req, res) => {
         } catch (dbError) {
             console.error('⚠️ DB 저장 실패 (계속 진행):', dbError.message);
         }
+
+        // 예약 완료 → 세션 초기화
+        if (clearSession) clearSession(userId);
 
         // 아키텍트님 호칭 적용 응답
         const naverUrl = process.env.NAVER_BOOKING_URL || 'https://naver.me/예약URL';
@@ -54,6 +83,7 @@ module.exports = async (req, res) => {
         return res.json(simpleText('죄송합니다. 잠시 후 다시 시도해 주세요.'));
     }
 };
+
 
 /**
  * 고객 정보 파싱 (여러 형식 지원 + 상세 오류 메시지)
